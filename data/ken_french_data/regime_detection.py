@@ -143,4 +143,3 @@ class RegimeHMM():
 
         # Save the plot
         plt.savefig('pca_with_regimes.png', dpi=300)
-
