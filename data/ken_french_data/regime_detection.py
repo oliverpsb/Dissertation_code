@@ -90,10 +90,9 @@ class RegimeHMM():
     
     def get_transition_matrix(self):
         "Get the transition matrix of the HMM model."
-        print("HMM Transition Matrix:")
-        return print(np.round(self.hmm_model.transmat_, 3))
+        return np.round(self.hmm_model.transmat_, 3)
     
-    def plot_pc_with_regimes(self, title):
+    def plot_pc_with_regimes(self, title, n_pca_components):
         """
         Plot the principal components with shaded regimes.
         param: title - title of the plot.
@@ -142,4 +141,4 @@ class RegimeHMM():
         plt.legend(handles=list(used_patches.values()), loc='upper right', title='Regimes')
 
         # Save the plot
-        plt.savefig('pca_with_regimes.png', dpi=300)
+        plt.savefig(f'pc{n_pca_components}_with_regimes.png', dpi=300)

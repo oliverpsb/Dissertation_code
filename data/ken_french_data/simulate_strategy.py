@@ -116,3 +116,31 @@ def cumulative_comparison_plot(strategy_returns, benchmark_returns, title):
     plt.tight_layout()
     plt.savefig(f"{title}.png", dpi=300)
 
+
+import matplotlib.pyplot as plt
+
+
+def compare_all_strategies(strategy_dict, benchmark_series, n_pca_components, title="Cumulative Returns: Strategies vs Benchmark"):
+    """
+    strategy_dict: dict of {label: pd.Series} for each strategy's return stream (in %)
+    benchmark_series: pd.Series of benchmark returns (in %)
+    """
+    plt.figure(figsize=(14, 7))
+
+    # Compute and plot cumulative returns for each strategy
+    for label, returns in strategy_dict.items():
+        cumulative = (1 + returns / 100).cumprod()
+        plt.plot(cumulative, label=label)
+
+    # Plot benchmark
+    benchmark_cum = (1 + benchmark_series / 100).loc[returns.index].cumprod()
+    plt.plot(benchmark_cum, label="Benchmark (Mkt-RF)", linestyle='--', color='black')
+
+    # Plot styling
+    plt.title(title)
+    plt.ylabel("Growth of $1")
+    plt.xlabel("Date")
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"PCA_{n_pca_components}_all_strategies.png", dpi=300)

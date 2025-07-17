@@ -9,10 +9,14 @@ from simulate_strategy import simulate_sharpe_weighted_strategy
 from simulate_strategy import simulate_vol_scaled_strategy
 from simulate_strategy import cumulative_comparison_plot
 from simulate_strategy import simulate_filtered_strategy
+from simulate_strategy import compare_all_strategies
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 # Load the FF5 dataset
 ff5_url = 'https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_CSV.zip'
@@ -35,6 +39,10 @@ all_factors = pd.merge(fama_french_5, momentum, how="inner", on='Date')  # Merge
 all_factors.set_index('Date', inplace=True)
 
 all_factors = all_factors.apply(pd.to_numeric, errors='coerce')  # Convert all columns to numeric
+all_factors.to_csv('factors_data.csv', index=True)
+logging.info('Created and saved factors dataframe')
+
+print()
 
 # Get the macroeconomic data
 load_dotenv()
@@ -85,17 +93,27 @@ macro_df.reset_index(inplace=True)
 macro_df.set_index('Date', inplace=True)
 macro_df.index = pd.to_datetime(macro_df.index)
 macro_df = macro_df[macro_df.index >= '1990-01-01']
+macro_df.to_csv('macro_data.csv', index=True)
 
+logging.info('Fetched, processed and saved macroeconomic data as macro_data.csv')
+
+logging.info('Running PCA on macroeconomic data...')
 # Run PCA on macroeconomic data
-m_model = MacroPCA(data=macro_df, n_components=5)
+n_comps = 5  # Number of components to extract
+m_model = MacroPCA(data=macro_df, n_components=n_comps)
 m_model.standardise()
 pc_df_m = m_model.run_pca()
 
+pc_df_m.to_csv(f'pc{n_comps}_df_m.csv', index=True)  # Save PCA output
+
+logging.info(f'PCA completed. Saved PCA output to pc{n_comps}_df_m.csv')
+
+logging.info('Plotting principal components over time...')
 # Plot the principal components over time
 pc_df_m.index = pd.to_datetime(pc_df_m.index)
 
 plt.figure(figsize=(14, 8))
-for i in range(5):
+for i in range(n_comps):
     plt.plot(pc_df_m.index, pc_df_m.iloc[:, i], label=f'PC{i+1}')
 plt.title('Principal Components Over Time')
 plt.xlabel('Date')
@@ -108,18 +126,27 @@ plt.gcf().autofmt_xdate()  # Rotate x-axis labels for readability
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-# plt.savefig('pca_timeline.png', dpi=300)  # Save the plot
+plt.savefig(f'pca{n_comps}_timeline.png', dpi=300)  # Save the plot
 
+logging.info(f'PCA timeline plot saved as pca{n_comps}_timeline.png')
+
+logging.info('Fitting HMM to monthly PCA output...')
 # Fit HMM to monthly PCA output
 m_hmm = RegimeHMM(pca_output=pc_df_m, n_regimes=4, covariance_type='full')
 m_hmm.fit()
-m_hmm.plot_pc_with_regimes("Monthly PC with HMM Regimes")
-m_hmm.get_transition_matrix()
+m_hmm.plot_pc_with_regimes("Monthly PC with HMM Regimes", n_pca_components=n_comps)
+logging.info(f'HMM fitted and plot saved as pc{n_comps}_with_regimes.png.')
+transition_matrix = m_hmm.get_transition_matrix()
+transition_matrix_df = pd.DataFrame(transition_matrix)
+transition_matrix_df.to_csv(f'pc{n_comps}_transition_matrix.csv')
+logging.info(f'Transition matrix obtained from HMM model and saved as pc{n_comps}_transition_matrix.csv')
 
 # Attach the regime labels to the PCA output and dates
 monthly_regimes = m_hmm.pca_output[['PC1', 'PC2', 'PC3', 'PC4', 'Regime']].copy()
 
 # This next section will be about factor performance based on the regimes detected
+
+logging.info('Merging macro PCA with factor data...')
 
 monthly_regimes['LaggedRegime'] = monthly_regimes['Regime'].shift(1)
 
@@ -127,8 +154,11 @@ all_factors.index = pd.to_datetime(all_factors.index)
 merged = all_factors.merge(monthly_regimes, left_index=True, right_index=True, how='inner')
 merged.dropna(subset=['LaggedRegime'], inplace=True)
 merged['LaggedRegime'] = merged['LaggedRegime'].astype(int)
-merged.to_csv('merged_factors_with_regimes.csv')
+merged.to_csv(f'pc{n_comps}_merged_factors_with_regimes.csv')
 
+logging.info(f'Merged factors with regimes and saved as pc{n_comps}_merged_factors_with_regimes.csv')
+
+logging.info('Evaluating factor performance based on regimes...')
 # Define factor columns you want to evaluate
 factor_cols = ['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom']
 # Group by LaggedRegime to evaluate factor performance after regime is known
@@ -146,7 +176,11 @@ performance.columns = ['_'.join(col) for col in performance.columns]
 
 # Combine mean, std, and Sharpe into one final table
 performance_summary = pd.concat([performance, sharpe_ratios], axis=1)
+performance_summary.to_csv(f'pc{n_comps}_factor_performance_summary.csv')
 
+logging.info(f'Factor performance summary saved as pc{n_comps}_factor_performance_summary.csv')
+
+logging.info('Extracting Sharpe ratios and normalizing for regime-based factor allocation...')
 # Extract only Sharpe columns
 sharpe_df = performance_summary[[col for col in performance_summary.columns if col.endswith('_Sharpe')]]
 
@@ -174,7 +208,7 @@ for regime in sharpe_df.index:
     regime_factors[regime] = top_factors
 
 # Display result
-print("=== Regime-Based Factor Allocation Strategy ===")
+print(f"=== Regime-Based Factor Allocation Strategy for Top N = {TOP_N} ===")
 for regime, factors in regime_factors.items():
     print(f"Regime {regime}: {', '.join(factors)}")
 
@@ -190,8 +224,11 @@ plt.xticks(rotation=0)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(title='Regime', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-plt.savefig("sharpe_ratios_by_regime.png", dpi=300)
+plt.savefig(f"pc{n_comps}_sharpe_ratios_by_regime.png", dpi=300)
 
+logging.info(f'Sharpe ratios by regime plot saved as pc{n_comps}_sharpe_ratios_by_regime.png')
+
+logging.info('Simulating strategies based on regime factors...')
 # Simulate the strategy
 strategy_returns = simulate_strategy(merged, regime_factors)
 strategy_weighted_returns = simulate_sharpe_weighted_strategy(merged, sharpe_weights)
@@ -204,14 +241,32 @@ factors_used = sorted(set(f for sublist in regime_factors.values() for f in subl
 rolling_vol = merged[factors_used].rolling(window=12).std()
 strategy_vol_scaled_returns = simulate_vol_scaled_strategy(merged, regime_factors, rolling_vol)
 
+logging.info('Strategies simulated successfully.')
+
 # Benchmark comparison
 
 # Get benchmark returns (e.g., Mkt-RF)
 benchmark_returns = merged['Mkt-RF']
 
+logging.info('Comparing strategies with benchmark returns...')
+
 # Cumulative return plots
 
-cumulative_comparison_plot(strategy_returns, benchmark_returns, "PCA=5_N=2_Equal_Weight_cumulative_returns_strategy_vs_benchmark")
-cumulative_comparison_plot(strategy_weighted_returns, benchmark_returns, "PCA=5_N=2_Sharpe_Weighted_cumulative_returns_strategy_vs_benchmark")
-cumulative_comparison_plot(strategy_excess, benchmark_returns, "PCA=5_N=2_Filtered_cumulative_returns_strategy_vs_benchmark") # Seems to be the same as equal weight
-cumulative_comparison_plot(strategy_vol_scaled_returns, benchmark_returns, "PCA=5_N=2_Vol_Scaled_cumulative_returns_strategy_vs_benchmark")
+cumulative_comparison_plot(strategy_returns, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Equal_Weight_cumulative_returns_strategy_vs_benchmark")
+cumulative_comparison_plot(strategy_weighted_returns, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Sharpe_Weighted_cumulative_returns_strategy_vs_benchmark")
+cumulative_comparison_plot(strategy_excess, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Filtered_cumulative_returns_strategy_vs_benchmark") # Seems to be the same as equal weight
+cumulative_comparison_plot(strategy_vol_scaled_returns, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Vol_Scaled_cumulative_returns_strategy_vs_benchmark")
+
+logging.info('Cumulative comparison plots saved successfully.')
+
+logging.info('Comparing all strategies...')
+# Compare all strategies
+strategy_dict = {
+    f"PCA={n_comps} Equal Weight": strategy_returns,
+    f"PCA={n_comps} Sharpe Weighted": strategy_weighted_returns,
+    f"PCA={n_comps} Filtered": strategy_excess,
+    f"PCA={n_comps} Vol Scaled": strategy_vol_scaled_returns
+}
+
+compare_all_strategies(strategy_dict, benchmark_returns, n_pca_components=n_comps)
+logging.info(f'All strategies compared and plotted successfully. Saved as pc{n_comps}_all_strategies.png')
