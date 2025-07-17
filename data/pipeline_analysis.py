@@ -4,17 +4,12 @@ from dotenv import load_dotenv
 import os
 from regime_detection import MacroPCA
 from regime_detection import RegimeHMM
-from simulate_strategy import simulate_strategy
-from simulate_strategy import simulate_sharpe_weighted_strategy
-from simulate_strategy import simulate_vol_scaled_strategy
-from simulate_strategy import cumulative_comparison_plot
-from simulate_strategy import simulate_filtered_strategy
-from simulate_strategy import compare_all_strategies
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
 import logging
+from scipy.stats import f_oneway
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
@@ -103,6 +98,13 @@ n_comps = 5  # Number of components to extract
 m_model = MacroPCA(data=macro_df, n_components=n_comps)
 m_model.standardise()
 pc_df_m = m_model.run_pca()
+scree_plot = m_model.plot_scree(save_path=f'analysis_output/pc{n_comps}_scree_plot.png')
+
+logging.info('PCA justification steps...')
+explained_var = m_model.get_explained_variance()
+explained_series = pd.Series(explained_var, index=[f'PC{i+1}' for i in range(len(explained_var))])
+explained_series.to_csv(f'analysis_output/pc{n_comps}_explained_variance.csv', index=True)
+
 
 pc_df_m.to_csv(f'analysis_output/pc{n_comps}_df_m.csv', index=True)  # Save PCA output
 
@@ -134,6 +136,11 @@ logging.info('Fitting HMM to monthly PCA output...')
 # Fit HMM to monthly PCA output
 m_hmm = RegimeHMM(pca_output=pc_df_m, n_regimes=4, covariance_type='full', simulate=False)
 m_hmm.fit()
+
+logging.info('Running BIC comparison for different regime counts...')
+m_hmm.compare_bic(min_regimes=2, max_regimes=8)
+logging.info('BIC comparison completed and saved to analysis_output/hmm_bic_comparison.csv')
+
 m_hmm.plot_pc_with_regimes("Monthly PC with HMM Regimes", n_pca_components=n_comps)
 logging.info(f'HMM fitted and plot saved as pc{n_comps}_with_regimes.png.')
 transition_matrix = m_hmm.get_transition_matrix()
@@ -171,23 +178,57 @@ performance = grouped.agg(['mean', 'std'])
 sharpe_ratios = performance.xs('mean', axis=1, level=1) / performance.xs('std', axis=1, level=1)
 sharpe_ratios.columns = [f'{col}_Sharpe' for col in sharpe_ratios.columns]
 
+# Calculate Hit Ratio
+hit_ratios = merged.groupby('LaggedRegime')[factor_cols].apply(lambda x: (x > 0).mean())
+hit_ratios.columns = [f'{col}_HitRatio' for col in hit_ratios.columns]
+
+# Calculate Sortino Ratio
+def sortino_ratio(x):
+    downside = x[x < 0]
+    return x.mean() / downside.std() if downside.std !=0 else np.nan
+
+sortino_ratios = merged.groupby('LaggedRegime')[factor_cols].agg(sortino_ratio)
+sortino_ratios.columns = [f'{col}_Sortino' for col in sortino_ratios.columns]
+
 # Flatten the multi-index columns of performance DataFrame
 performance.columns = ['_'.join(col) for col in performance.columns]
 
 # Combine mean, std, and Sharpe into one final table
 performance_summary = pd.concat([performance, sharpe_ratios], axis=1)
+performance_summary = pd.concat([performance_summary, hit_ratios, sortino_ratios], axis=1)
 performance_summary.to_csv(f'analysis_output/pc{n_comps}_factor_performance_summary.csv')
 
 logging.info(f'Factor performance summary saved as pc{n_comps}_factor_performance_summary.csv')
+
+
+
+
+logging.info('Implementing ANOVA to compare factor performance across regimes...')
+anova_results = {}
+for factor in factor_cols:
+    samples = [group[factor].values for _, group in merged.groupby('LaggedRegime')]
+    f_stat, p_value = f_oneway(*samples)
+    anova_results[factor] = {'F-stat': f_stat, 'p-value': p_value}
+
+anova_df = pd.DataFrame(anova_results).T
+anova_df.to_csv(f'analysis_output/pc{n_comps}_anova_results.csv')
+logging.info(f'ANOVA results saved as pc{n_comps}_anova_results.csv')
+
+
+logging.info('Calculating full-sample Sharpe ratio for baseline comparison...')
+# Calculate full-sample Sharpe ratio for baseline comparison
+full_sample_sharpe = all_factors[factor_cols].mean() / all_factors[factor_cols].std()
+full_sample_sharpe.name = 'FullSample_Sharpe'
+full_sample_sharpe.to_csv(f'analysis_output/pc{n_comps}_full_sample_sharpe.csv')
 
 # Extract Sharpe ratios directly from performance_summary for plotting
 sharpe_cols = [col for col in performance_summary.columns if col.endswith('_Sharpe')]
 sharpe_df = performance_summary[sharpe_cols].copy()
 sharpe_df.columns = [col.replace('_Sharpe', '') for col in sharpe_df.columns]
-sharpe_df_T = sharpe_df.T
 
-# Plot
-sharpe_df_T.plot(kind='bar', figsize=(12, 6), width=0.8)
+# === 1. Plot REGIME Sharpe ONLY ===
+sharpe_df_T_regimes = sharpe_df.T  # Only regime-wise
+sharpe_df_T_regimes.plot(kind='bar', figsize=(12, 6), width=0.8)
 plt.title('Sharpe Ratios by Factor and Regime')
 plt.xlabel('Factor')
 plt.ylabel('Sharpe Ratio')
@@ -196,5 +237,24 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(title='Regime', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
 plt.savefig(f"analysis_output/pc{n_comps}_sharpe_ratios_by_regime.png", dpi=300)
-
 logging.info(f'Sharpe ratios by regime plot saved as pc{n_comps}_sharpe_ratios_by_regime.png')
+
+# === 2. Add FULL SAMPLE Sharpe and plot comparison ===
+sharpe_df_T_with_baseline = sharpe_df_T_regimes.copy()
+sharpe_df_T_with_baseline['Full Sample'] = full_sample_sharpe
+sharpe_df_T_with_baseline.to_csv(f'analysis_output/pc{n_comps}_sharpe_ratios_comparison.csv')
+
+# Reorder to keep 'Full Sample' last
+ordered_cols = [col for col in sharpe_df_T_with_baseline.columns if col != 'Full Sample'] + ['Full Sample']
+sharpe_df_T_with_baseline = sharpe_df_T_with_baseline[ordered_cols]
+
+sharpe_df_T_with_baseline.plot(kind='bar', figsize=(12, 6), width=0.8)
+plt.title('Sharpe Ratios by Factor and Regime (Including Full Sample)')
+plt.xlabel('Factor')
+plt.ylabel('Sharpe Ratio')
+plt.xticks(rotation=0)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.legend(title='Regime', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+plt.savefig(f"analysis_output/pc{n_comps}_sharpe_ratios_with_full_sample.png", dpi=300)
+logging.info(f'Sharpe ratio comparison with full-sample baseline saved as pc{n_comps}_sharpe_ratios_with_full_sample.png')

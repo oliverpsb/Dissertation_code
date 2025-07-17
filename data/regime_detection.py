@@ -56,6 +56,37 @@ class MacroPCA:
             raise RuntimeError("PCA has not been run yet.")
         return self.loadings
 
+    def plot_scree(self, save_path=None, cumulative=False):
+        """
+        Plot a scree plot showing explained variance ratio and optionally cumulative variance.
+        """
+        if not hasattr(self, 'data_scaled'):
+            raise RuntimeError("You must call standardize() before plotting scree plot.")
+
+        full_pca = PCA()
+        full_pca.fit(self.data_scaled)
+        explained = full_pca.explained_variance_ratio_
+        cumulative_var = explained.cumsum()
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(range(1, len(explained) + 1), explained, marker='o', label='Explained Variance')
+        if cumulative:
+            plt.plot(range(1, len(cumulative_var) + 1), cumulative_var, marker='x', linestyle='--', label='Cumulative Variance')
+
+        plt.title('Scree Plot of Principal Components')
+        plt.xlabel('Principal Component')
+        plt.ylabel('Explained Variance Ratio')
+        plt.xticks(range(1, len(explained) + 1))
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path)
+        else:
+            plt.show()
+
+
 
 class RegimeHMM():
     def __init__(self, pca_output, n_regimes=4, n_iterations=10000, covariance_type="full", simulate=False):
@@ -146,3 +177,35 @@ class RegimeHMM():
         plt.legend(handles=list(used_patches.values()), loc='upper right', title='Regimes')
         plt.savefig(saved_place_name, dpi=300)
         # Save the plot
+
+
+    def compare_bic(self, pca_input=None, min_regimes=2, max_regimes=6, output_path="analysis_output/hmm_bic_comparison.csv"):
+        """
+        Compare BIC scores for different regime counts
+        """
+        if pca_input is None:
+            pca_input = self.pca_output.drop(columns='Regime', errors='ignore')
+
+        n_obs = len(pca_input)
+        n_features = pca_input.shape[1]
+        bic_scores = {}
+
+        for n in range(min_regimes, max_regimes + 1):
+            hmm = GaussianHMM(n_components=n, covariance_type=self.covariance_type,
+                            n_iter=self.iterations, random_state=42)
+            hmm.fit(pca_input)
+            log_likelihood = hmm.score(pca_input)
+
+            # Parameter count
+            n_transition = n * (n - 1)
+            n_startprob = n - 1
+            n_means = n * n_features
+            n_covars = n * (n_features * (n_features + 1)) / 2
+            n_params = n_transition + n_startprob + n_means + n_covars
+
+            bic = -2 * log_likelihood + n_params * np.log(n_obs)
+            bic_scores[n] = bic
+
+        pd.Series(bic_scores, name='BIC').to_csv(output_path)
+        print(f"BIC comparison saved to {output_path}")
+
