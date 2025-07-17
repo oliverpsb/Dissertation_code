@@ -214,15 +214,15 @@ for factor in factor_cols:
     anova_results[factor] = {'F-stat': f_stat, 'p-value': p_value}
 
 anova_df = pd.DataFrame(anova_results).T
-anova_df.to_csv(f'analysis_output/pc{n_comps}_anova_results.csv')
-logging.info(f'ANOVA results saved as pc{n_comps}_anova_results.csv')
+anova_df.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_anova_results.csv')
+logging.info(f'ANOVA results saved as pc{n_comps}_r{num_reg}_anova_results.csv')
 
 
 logging.info('Calculating full-sample Sharpe ratio for baseline comparison...')
 # Calculate full-sample Sharpe ratio for baseline comparison
 full_sample_sharpe = all_factors[factor_cols].mean() / all_factors[factor_cols].std()
 full_sample_sharpe.name = 'FullSample_Sharpe'
-full_sample_sharpe.to_csv(f'analysis_output/pc{n_comps}_full_sample_sharpe.csv')
+full_sample_sharpe.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_full_sample_sharpe.csv')
 
 # Extract Sharpe ratios directly from performance_summary for plotting
 sharpe_cols = [col for col in performance_summary.columns if col.endswith('_Sharpe')]
