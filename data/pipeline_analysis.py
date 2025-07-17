@@ -134,7 +134,7 @@ logging.info(f'PCA timeline plot saved as pca{n_comps}_timeline.png')
 
 logging.info('Fitting HMM to monthly PCA output...')
 # Fit HMM to monthly PCA output
-num_reg = 3
+num_reg = 4
 m_hmm = RegimeHMM(pca_output=pc_df_m, n_regimes=num_reg, covariance_type='full', simulate=False)
 m_hmm.fit()
 
@@ -156,12 +156,13 @@ monthly_regimes = m_hmm.pca_output[['PC1', 'PC2', 'PC3', 'PC4', 'Regime']].copy(
 
 logging.info('Merging macro PCA with factor data...')
 
-monthly_regimes['LaggedRegime'] = monthly_regimes['Regime'].shift(1)
+# monthly_regimes['LaggedRegime'] = monthly_regimes['Regime'].shift(1)
 
 all_factors.index = pd.to_datetime(all_factors.index)
+# merged = all_factors.merge(monthly_regimes, left_index=True, right_index=True, how='inner')
+# merged.dropna(subset=['LaggedRegime'], inplace=True)
+# merged['LaggedRegime'] = merged['LaggedRegime'].astype(int)
 merged = all_factors.merge(monthly_regimes, left_index=True, right_index=True, how='inner')
-merged.dropna(subset=['LaggedRegime'], inplace=True)
-merged['LaggedRegime'] = merged['LaggedRegime'].astype(int)
 merged.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_merged_factors_with_regimes.csv')
 
 logging.info(f'Merged factors with regimes and saved as pc{n_comps}_r{num_reg}_merged_factors_with_regimes.csv')
@@ -171,7 +172,8 @@ logging.info('Evaluating factor performance based on regimes...')
 factor_cols = ['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom']
 # Group by LaggedRegime to evaluate factor performance after regime is known
 
-grouped = merged.groupby('LaggedRegime')[factor_cols]
+# grouped = merged.groupby('LaggedRegime')[factor_cols]
+grouped = merged.groupby('Regime')[factor_cols]
 # Compute mean and standard deviation of factor returns in each regime
 performance = grouped.agg(['mean', 'std'])
 
@@ -180,7 +182,7 @@ sharpe_ratios = performance.xs('mean', axis=1, level=1) / performance.xs('std', 
 sharpe_ratios.columns = [f'{col}_Sharpe' for col in sharpe_ratios.columns]
 
 # Calculate Hit Ratio
-hit_ratios = merged.groupby('LaggedRegime')[factor_cols].apply(lambda x: (x > 0).mean())
+hit_ratios = merged.groupby('Regime')[factor_cols].apply(lambda x: (x > 0).mean())
 hit_ratios.columns = [f'{col}_HitRatio' for col in hit_ratios.columns]
 
 # Calculate Sortino Ratio
@@ -188,7 +190,7 @@ def sortino_ratio(x):
     downside = x[x < 0]
     return x.mean() / downside.std() if downside.std !=0 else np.nan
 
-sortino_ratios = merged.groupby('LaggedRegime')[factor_cols].agg(sortino_ratio)
+sortino_ratios = merged.groupby('Regime')[factor_cols].agg(sortino_ratio)
 sortino_ratios.columns = [f'{col}_Sortino' for col in sortino_ratios.columns]
 
 # Flatten the multi-index columns of performance DataFrame
@@ -207,7 +209,7 @@ logging.info(f'Factor performance summary saved as pc{n_comps}_r{num_reg}_factor
 logging.info('Implementing ANOVA to compare factor performance across regimes...')
 anova_results = {}
 for factor in factor_cols:
-    samples = [group[factor].values for _, group in merged.groupby('LaggedRegime')]
+    samples = [group[factor].values for _, group in merged.groupby('Regime')]
     f_stat, p_value = f_oneway(*samples)
     anova_results[factor] = {'F-stat': f_stat, 'p-value': p_value}
 
