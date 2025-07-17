@@ -114,7 +114,7 @@ def cumulative_comparison_plot(strategy_returns, benchmark_returns, title):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(f"{title}.png", dpi=300)
+    plt.savefig(f"strategy_output/{title}.png", dpi=300)
 
 
 import matplotlib.pyplot as plt
@@ -146,4 +146,4 @@ def compare_all_strategies(strategy_dict, benchmark_series, n_pca_components, ti
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"PCA_{n_pca_components}_all_strategies.png", dpi=300)
+    plt.savefig(f"strategy_output/PCA_{n_pca_components}_all_strategies.png", dpi=300)

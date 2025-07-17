@@ -141,4 +141,4 @@ class RegimeHMM():
         plt.legend(handles=list(used_patches.values()), loc='upper right', title='Regimes')
 
         # Save the plot
-        plt.savefig(f'pc{n_pca_components}_with_regimes.png', dpi=300)
+        plt.savefig(f'strategy_output/pc{n_pca_components}_with_regimes.png', dpi=300)

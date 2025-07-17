@@ -16,6 +16,7 @@ import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
 import logging
 
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 # Load the FF5 dataset
@@ -39,7 +40,7 @@ all_factors = pd.merge(fama_french_5, momentum, how="inner", on='Date')  # Merge
 all_factors.set_index('Date', inplace=True)
 
 all_factors = all_factors.apply(pd.to_numeric, errors='coerce')  # Convert all columns to numeric
-all_factors.to_csv('data\\strategy_output\\factors_data.csv', index=True)
+all_factors.to_csv('strategy_output/factors_data.csv', index=True)
 logging.info('Created and saved factors dataframe')
 
 print()
@@ -93,7 +94,7 @@ macro_df.reset_index(inplace=True)
 macro_df.set_index('Date', inplace=True)
 macro_df.index = pd.to_datetime(macro_df.index)
 macro_df = macro_df[macro_df.index >= '1990-01-01']
-macro_df.to_csv('macro_data.csv', index=True)
+macro_df.to_csv('strategy_output/macro_data.csv', index=True)
 
 logging.info('Fetched, processed and saved macroeconomic data as macro_data.csv')
 
@@ -104,7 +105,7 @@ m_model = MacroPCA(data=macro_df, n_components=n_comps)
 m_model.standardise()
 pc_df_m = m_model.run_pca()
 
-pc_df_m.to_csv(f'pc{n_comps}_df_m.csv', index=True)  # Save PCA output
+pc_df_m.to_csv(f'strategy_output/pc{n_comps}_df_m.csv', index=True)  # Save PCA output
 
 logging.info(f'PCA completed. Saved PCA output to pc{n_comps}_df_m.csv')
 
@@ -126,7 +127,7 @@ plt.gcf().autofmt_xdate()  # Rotate x-axis labels for readability
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig(f'pca{n_comps}_timeline.png', dpi=300)  # Save the plot
+plt.savefig(f'strategy_output/pca{n_comps}_timeline.png', dpi=300)  # Save the plot
 
 logging.info(f'PCA timeline plot saved as pca{n_comps}_timeline.png')
 
@@ -138,7 +139,7 @@ m_hmm.plot_pc_with_regimes("Monthly PC with HMM Regimes", n_pca_components=n_com
 logging.info(f'HMM fitted and plot saved as pc{n_comps}_with_regimes.png.')
 transition_matrix = m_hmm.get_transition_matrix()
 transition_matrix_df = pd.DataFrame(transition_matrix)
-transition_matrix_df.to_csv(f'pc{n_comps}_transition_matrix.csv')
+transition_matrix_df.to_csv(f'strategy_output/pc{n_comps}_transition_matrix.csv')
 logging.info(f'Transition matrix obtained from HMM model and saved as pc{n_comps}_transition_matrix.csv')
 
 # Attach the regime labels to the PCA output and dates
@@ -154,7 +155,7 @@ all_factors.index = pd.to_datetime(all_factors.index)
 merged = all_factors.merge(monthly_regimes, left_index=True, right_index=True, how='inner')
 merged.dropna(subset=['LaggedRegime'], inplace=True)
 merged['LaggedRegime'] = merged['LaggedRegime'].astype(int)
-merged.to_csv(f'pc{n_comps}_merged_factors_with_regimes.csv')
+merged.to_csv(f'strategy_output/pc{n_comps}_merged_factors_with_regimes.csv')
 
 logging.info(f'Merged factors with regimes and saved as pc{n_comps}_merged_factors_with_regimes.csv')
 
@@ -176,7 +177,7 @@ performance.columns = ['_'.join(col) for col in performance.columns]
 
 # Combine mean, std, and Sharpe into one final table
 performance_summary = pd.concat([performance, sharpe_ratios], axis=1)
-performance_summary.to_csv(f'pc{n_comps}_factor_performance_summary.csv')
+performance_summary.to_csv(f'strategy_output/pc{n_comps}_factor_performance_summary.csv')
 
 logging.info(f'Factor performance summary saved as pc{n_comps}_factor_performance_summary.csv')
 
@@ -224,7 +225,7 @@ plt.xticks(rotation=0)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(title='Regime', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-plt.savefig(f"pc{n_comps}_sharpe_ratios_by_regime.png", dpi=300)
+plt.savefig(f"strategy_output/pc{n_comps}_sharpe_ratios_by_regime.png", dpi=300)
 
 logging.info(f'Sharpe ratios by regime plot saved as pc{n_comps}_sharpe_ratios_by_regime.png')
 
