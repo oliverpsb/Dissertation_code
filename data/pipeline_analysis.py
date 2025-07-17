@@ -94,7 +94,7 @@ logging.info('Fetched, processed and saved macroeconomic data as macro_data.csv'
 
 logging.info('Running PCA on macroeconomic data...')
 # Run PCA on macroeconomic data
-n_comps = 5  # Number of components to extract
+n_comps = 4  # Number of components to extract
 m_model = MacroPCA(data=macro_df, n_components=n_comps)
 m_model.standardise()
 pc_df_m = m_model.run_pca()
