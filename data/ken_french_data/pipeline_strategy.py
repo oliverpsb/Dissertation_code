@@ -39,7 +39,7 @@ all_factors = pd.merge(fama_french_5, momentum, how="inner", on='Date')  # Merge
 all_factors.set_index('Date', inplace=True)
 
 all_factors = all_factors.apply(pd.to_numeric, errors='coerce')  # Convert all columns to numeric
-all_factors.to_csv('factors_data.csv', index=True)
+all_factors.to_csv('data\\strategy_output\\factors_data.csv', index=True)
 logging.info('Created and saved factors dataframe')
 
 print()

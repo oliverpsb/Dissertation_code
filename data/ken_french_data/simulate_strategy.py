@@ -133,13 +133,16 @@ def compare_all_strategies(strategy_dict, benchmark_series, n_pca_components, ti
         plt.plot(cumulative, label=label)
 
     # Plot benchmark
-    benchmark_cum = (1 + benchmark_series / 100).loc[returns.index].cumprod()
+    benchmark_cum = (1 + benchmark_series / 100).cumprod()
     plt.plot(benchmark_cum, label="Benchmark (Mkt-RF)", linestyle='--', color='black')
 
     # Plot styling
     plt.title(title)
     plt.ylabel("Growth of $1")
     plt.xlabel("Date")
+    plt.gca().xaxis.set_major_locator(mdates.YearLocator(base=1))  # Every 2 years
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+    plt.gcf().autofmt_xdate()  # Rotate x-axis labels for readability
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
