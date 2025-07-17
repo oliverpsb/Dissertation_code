@@ -134,7 +134,8 @@ logging.info(f'PCA timeline plot saved as pca{n_comps}_timeline.png')
 
 logging.info('Fitting HMM to monthly PCA output...')
 # Fit HMM to monthly PCA output
-m_hmm = RegimeHMM(pca_output=pc_df_m, n_regimes=4, covariance_type='full', simulate=False)
+num_reg = 3
+m_hmm = RegimeHMM(pca_output=pc_df_m, n_regimes=num_reg, covariance_type='full', simulate=False)
 m_hmm.fit()
 
 logging.info('Running BIC comparison for different regime counts...')
@@ -145,8 +146,8 @@ m_hmm.plot_pc_with_regimes("Monthly PC with HMM Regimes", n_pca_components=n_com
 logging.info(f'HMM fitted and plot saved as pc{n_comps}_with_regimes.png.')
 transition_matrix = m_hmm.get_transition_matrix()
 transition_matrix_df = pd.DataFrame(transition_matrix)
-transition_matrix_df.to_csv(f'analysis_output/pc{n_comps}_transition_matrix.csv')
-logging.info(f'Transition matrix obtained from HMM model and saved as pc{n_comps}_transition_matrix.csv')
+transition_matrix_df.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_transition_matrix.csv')
+logging.info(f'Transition matrix obtained from HMM model and saved as pc{n_comps}_r{num_reg}_transition_matrix.csv')
 
 # Attach the regime labels to the PCA output and dates
 monthly_regimes = m_hmm.pca_output[['PC1', 'PC2', 'PC3', 'PC4', 'Regime']].copy()
@@ -161,9 +162,9 @@ all_factors.index = pd.to_datetime(all_factors.index)
 merged = all_factors.merge(monthly_regimes, left_index=True, right_index=True, how='inner')
 merged.dropna(subset=['LaggedRegime'], inplace=True)
 merged['LaggedRegime'] = merged['LaggedRegime'].astype(int)
-merged.to_csv(f'analysis_output/pc{n_comps}_merged_factors_with_regimes.csv')
+merged.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_merged_factors_with_regimes.csv')
 
-logging.info(f'Merged factors with regimes and saved as pc{n_comps}_merged_factors_with_regimes.csv')
+logging.info(f'Merged factors with regimes and saved as pc{n_comps}_r{num_reg}_merged_factors_with_regimes.csv')
 
 logging.info('Evaluating factor performance based on regimes...')
 # Define factor columns you want to evaluate
@@ -196,9 +197,9 @@ performance.columns = ['_'.join(col) for col in performance.columns]
 # Combine mean, std, and Sharpe into one final table
 performance_summary = pd.concat([performance, sharpe_ratios], axis=1)
 performance_summary = pd.concat([performance_summary, hit_ratios, sortino_ratios], axis=1)
-performance_summary.to_csv(f'analysis_output/pc{n_comps}_factor_performance_summary.csv')
+performance_summary.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_factor_performance_summary.csv')
 
-logging.info(f'Factor performance summary saved as pc{n_comps}_factor_performance_summary.csv')
+logging.info(f'Factor performance summary saved as pc{n_comps}_r{num_reg}_factor_performance_summary.csv')
 
 
 
@@ -236,13 +237,13 @@ plt.xticks(rotation=0)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(title='Regime', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-plt.savefig(f"analysis_output/pc{n_comps}_sharpe_ratios_by_regime.png", dpi=300)
-logging.info(f'Sharpe ratios by regime plot saved as pc{n_comps}_sharpe_ratios_by_regime.png')
+plt.savefig(f"analysis_output/pc{n_comps}_r{num_reg}_sharpe_ratios_by_regime.png", dpi=300)
+logging.info(f'Sharpe ratios by regime plot saved as pc{n_comps}_r{num_reg}_sharpe_ratios_by_regime.png')
 
 # === 2. Add FULL SAMPLE Sharpe and plot comparison ===
 sharpe_df_T_with_baseline = sharpe_df_T_regimes.copy()
 sharpe_df_T_with_baseline['Full Sample'] = full_sample_sharpe
-sharpe_df_T_with_baseline.to_csv(f'analysis_output/pc{n_comps}_sharpe_ratios_comparison.csv')
+sharpe_df_T_with_baseline.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_sharpe_ratios_comparison.csv')
 
 # Reorder to keep 'Full Sample' last
 ordered_cols = [col for col in sharpe_df_T_with_baseline.columns if col != 'Full Sample'] + ['Full Sample']
@@ -256,5 +257,5 @@ plt.xticks(rotation=0)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(title='Regime', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-plt.savefig(f"analysis_output/pc{n_comps}_sharpe_ratios_with_full_sample.png", dpi=300)
-logging.info(f'Sharpe ratio comparison with full-sample baseline saved as pc{n_comps}_sharpe_ratios_with_full_sample.png')
+plt.savefig(f"analysis_output/pc{n_comps}_r{num_reg}_sharpe_ratios_with_full_sample.png", dpi=300)
+logging.info(f'Sharpe ratio comparison with full-sample baseline saved as pc{n_comps}_r{num_reg}_sharpe_ratios_with_full_sample.png')

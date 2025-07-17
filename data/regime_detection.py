@@ -129,15 +129,15 @@ class RegimeHMM():
         param: title - title of the plot.
         """
         if self.simulate:
-            saved_place_name = f"strategy_output/pc{n_pca_components}_with_regimes.png"
+            saved_place_name = f"strategy_output/pc{n_pca_components}_r{self.n_regimes}_with_regimes.png"
         else:
-            saved_place_name = f"analysis_output/pc{n_pca_components}_with_regimes.png"
+            saved_place_name = f"analysis_output/pc{n_pca_components}_r{self.n_regimes}_with_regimes.png"
 
         plt.figure(figsize=(16, 7))
         regime_colors = plt.cm.Set1(np.arange(self.n_regimes))
 
         # Plot each principal component
-        for i in range(1, self.n_regimes + 1):
+        for i in range(1, n_pca_components + 1):
             plt.plot(self.pca_output.index, self.pca_output[f'PC{i}'], label=f'PC{i}', linewidth=1)
 
         # Shade regimes
