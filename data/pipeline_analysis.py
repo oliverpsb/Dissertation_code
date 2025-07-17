@@ -39,7 +39,7 @@ all_factors = pd.merge(fama_french_5, momentum, how="inner", on='Date')  # Merge
 all_factors.set_index('Date', inplace=True)
 
 all_factors = all_factors.apply(pd.to_numeric, errors='coerce')  # Convert all columns to numeric
-all_factors.to_csv('factors_data.csv', index=True)
+all_factors.to_csv('analysis_output/factors_data.csv', index=True)
 logging.info('Created and saved factors dataframe')
 
 print()
@@ -93,7 +93,7 @@ macro_df.reset_index(inplace=True)
 macro_df.set_index('Date', inplace=True)
 macro_df.index = pd.to_datetime(macro_df.index)
 macro_df = macro_df[macro_df.index >= '1990-01-01']
-macro_df.to_csv('macro_data.csv', index=True)
+macro_df.to_csv('analysis_output/macro_data.csv', index=True)
 
 logging.info('Fetched, processed and saved macroeconomic data as macro_data.csv')
 
@@ -104,7 +104,7 @@ m_model = MacroPCA(data=macro_df, n_components=n_comps)
 m_model.standardise()
 pc_df_m = m_model.run_pca()
 
-pc_df_m.to_csv(f'pc{n_comps}_df_m.csv', index=True)  # Save PCA output
+pc_df_m.to_csv(f'analysis_output/pc{n_comps}_df_m.csv', index=True)  # Save PCA output
 
 logging.info(f'PCA completed. Saved PCA output to pc{n_comps}_df_m.csv')
 
@@ -126,19 +126,19 @@ plt.gcf().autofmt_xdate()  # Rotate x-axis labels for readability
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig(f'pca{n_comps}_timeline.png', dpi=300)  # Save the plot
+plt.savefig(f'analysis_output/pca{n_comps}_timeline.png', dpi=300)  # Save the plot
 
 logging.info(f'PCA timeline plot saved as pca{n_comps}_timeline.png')
 
 logging.info('Fitting HMM to monthly PCA output...')
 # Fit HMM to monthly PCA output
-m_hmm = RegimeHMM(pca_output=pc_df_m, n_regimes=4, covariance_type='full')
+m_hmm = RegimeHMM(pca_output=pc_df_m, n_regimes=4, covariance_type='full', simulate=False)
 m_hmm.fit()
 m_hmm.plot_pc_with_regimes("Monthly PC with HMM Regimes", n_pca_components=n_comps)
 logging.info(f'HMM fitted and plot saved as pc{n_comps}_with_regimes.png.')
 transition_matrix = m_hmm.get_transition_matrix()
 transition_matrix_df = pd.DataFrame(transition_matrix)
-transition_matrix_df.to_csv(f'pc{n_comps}_transition_matrix.csv')
+transition_matrix_df.to_csv(f'analysis_output/pc{n_comps}_transition_matrix.csv')
 logging.info(f'Transition matrix obtained from HMM model and saved as pc{n_comps}_transition_matrix.csv')
 
 # Attach the regime labels to the PCA output and dates
@@ -154,7 +154,7 @@ all_factors.index = pd.to_datetime(all_factors.index)
 merged = all_factors.merge(monthly_regimes, left_index=True, right_index=True, how='inner')
 merged.dropna(subset=['LaggedRegime'], inplace=True)
 merged['LaggedRegime'] = merged['LaggedRegime'].astype(int)
-merged.to_csv(f'pc{n_comps}_merged_factors_with_regimes.csv')
+merged.to_csv(f'analysis_output/pc{n_comps}_merged_factors_with_regimes.csv')
 
 logging.info(f'Merged factors with regimes and saved as pc{n_comps}_merged_factors_with_regimes.csv')
 
@@ -176,43 +176,14 @@ performance.columns = ['_'.join(col) for col in performance.columns]
 
 # Combine mean, std, and Sharpe into one final table
 performance_summary = pd.concat([performance, sharpe_ratios], axis=1)
-performance_summary.to_csv(f'pc{n_comps}_factor_performance_summary.csv')
+performance_summary.to_csv(f'analysis_output/pc{n_comps}_factor_performance_summary.csv')
 
 logging.info(f'Factor performance summary saved as pc{n_comps}_factor_performance_summary.csv')
 
-logging.info('Extracting Sharpe ratios and normalizing for regime-based factor allocation...')
-# Extract only Sharpe columns
-sharpe_df = performance_summary[[col for col in performance_summary.columns if col.endswith('_Sharpe')]]
-
-# Clean column names
+# Extract Sharpe ratios directly from performance_summary for plotting
+sharpe_cols = [col for col in performance_summary.columns if col.endswith('_Sharpe')]
+sharpe_df = performance_summary[sharpe_cols].copy()
 sharpe_df.columns = [col.replace('_Sharpe', '') for col in sharpe_df.columns]
-
-# Only keep positive Sharpe ratios
-sharpe_pos_df = sharpe_df.copy()
-sharpe_pos_df[sharpe_pos_df < 0] = 0  # set negative Sharpe values to 0
-
-# Normalize Sharpe ratios within each regime to get weights
-sharpe_weights = sharpe_pos_df.div(sharpe_pos_df.sum(axis=1), axis=0)
-
-# Drop regimes where all factors had 0 Sharpe
-sharpe_weights = sharpe_weights.dropna(how='all')
-
-# Define how many top factors to select per regime
-TOP_N = 2
-
-# Get top-N factors per regime based on Sharpe ratio
-regime_factors = {}
-for regime in sharpe_df.index:
-    ranked = sharpe_df.loc[regime].sort_values(ascending=False)
-    top_factors = ranked[ranked > 0].head(TOP_N).index.tolist()
-    regime_factors[regime] = top_factors
-
-# Display result
-print(f"=== Regime-Based Factor Allocation Strategy for Top N = {TOP_N} ===")
-for regime, factors in regime_factors.items():
-    print(f"Regime {regime}: {', '.join(factors)}")
-
-# Transpose so we can plot regimes on x-axis
 sharpe_df_T = sharpe_df.T
 
 # Plot
@@ -224,6 +195,6 @@ plt.xticks(rotation=0)
 plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.legend(title='Regime', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-plt.savefig(f"pc{n_comps}_sharpe_ratios_by_regime.png", dpi=300)
+plt.savefig(f"analysis_output/pc{n_comps}_sharpe_ratios_by_regime.png", dpi=300)
 
 logging.info(f'Sharpe ratios by regime plot saved as pc{n_comps}_sharpe_ratios_by_regime.png')

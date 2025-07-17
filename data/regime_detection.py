@@ -58,7 +58,7 @@ class MacroPCA:
 
 
 class RegimeHMM():
-    def __init__(self, pca_output, n_regimes=4, n_iterations=10000, covariance_type="full"):
+    def __init__(self, pca_output, n_regimes=4, n_iterations=10000, covariance_type="full", simulate=False):
         """
         Initialise HMM model.
         param: pca_output - dataframe of the PCA output on macro indicators.
@@ -71,7 +71,7 @@ class RegimeHMM():
                                     - tied: all mixture components of each state uses the same full covariance matrix
 
         """
-
+        self.simulate = simulate
         self.pca_output = pca_output
         self.n_regimes = n_regimes
         self.iterations = n_iterations
@@ -97,6 +97,11 @@ class RegimeHMM():
         Plot the principal components with shaded regimes.
         param: title - title of the plot.
         """
+        if self.simulate:
+            saved_place_name = f"strategy_output/pc{n_pca_components}_with_regimes.png"
+        else:
+            saved_place_name = f"analysis_output/pc{n_pca_components}_with_regimes.png"
+
         plt.figure(figsize=(16, 7))
         regime_colors = plt.cm.Set1(np.arange(self.n_regimes))
 
@@ -139,6 +144,5 @@ class RegimeHMM():
         pc_legend = plt.legend(loc='upper left')
         plt.gca().add_artist(pc_legend)  # Show both legends
         plt.legend(handles=list(used_patches.values()), loc='upper right', title='Regimes')
-
+        plt.savefig(saved_place_name, dpi=300)
         # Save the plot
-        plt.savefig(f'strategy_output/pc{n_pca_components}_with_regimes.png', dpi=300)

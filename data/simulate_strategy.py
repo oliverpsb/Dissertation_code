@@ -98,7 +98,7 @@ def simulate_filtered_strategy(merged_df, regime_factors_dict, pc_filter_col=Non
     return pd.Series(strat_returns, index=dates, name='FilteredStrategyReturn')
 
 
-def cumulative_comparison_plot(strategy_returns, benchmark_returns, title):
+def cumulative_comparison_plot(strategy_returns, benchmark_returns, title, simulate):
     strategy_cum = (1 + strategy_returns / 100).cumprod()
     benchmark_cum = (1 + benchmark_returns / 100).cumprod()
 
@@ -114,18 +114,23 @@ def cumulative_comparison_plot(strategy_returns, benchmark_returns, title):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt.savefig(f"strategy_output/{title}.png", dpi=300)
+    if simulate:
+        plt.savefig(f"strategy_output/{title}.png", dpi=300)
+    else:
+        plt.savefig(f"analysis_output/{title}.png", dpi=300)
 
 
-import matplotlib.pyplot as plt
-
-
-def compare_all_strategies(strategy_dict, benchmark_series, n_pca_components, title="Cumulative Returns: Strategies vs Benchmark"):
+def compare_all_strategies(strategy_dict, benchmark_series, n_pca_components, title="Cumulative Returns: Strategies vs Benchmark", simulate=False):
     """
     strategy_dict: dict of {label: pd.Series} for each strategy's return stream (in %)
     benchmark_series: pd.Series of benchmark returns (in %)
     """
     plt.figure(figsize=(14, 7))
+
+    if simulate:
+        saved_place_name = f"strategy_output/PCA_{n_pca_components}_all_strategies.png"
+    else:
+        saved_place_name = f"analysis_output/PCA_{n_pca_components}_all_strategies.png"
 
     # Compute and plot cumulative returns for each strategy
     for label, returns in strategy_dict.items():
@@ -146,4 +151,4 @@ def compare_all_strategies(strategy_dict, benchmark_series, n_pca_components, ti
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(f"strategy_output/PCA_{n_pca_components}_all_strategies.png", dpi=300)
+    plt.savefig(saved_place_name, dpi=300)  # Save the plot

@@ -133,7 +133,7 @@ logging.info(f'PCA timeline plot saved as pca{n_comps}_timeline.png')
 
 logging.info('Fitting HMM to monthly PCA output...')
 # Fit HMM to monthly PCA output
-m_hmm = RegimeHMM(pca_output=pc_df_m, n_regimes=4, covariance_type='full')
+m_hmm = RegimeHMM(pca_output=pc_df_m, n_regimes=4, covariance_type='full', simulate=True)
 m_hmm.fit()
 m_hmm.plot_pc_with_regimes("Monthly PC with HMM Regimes", n_pca_components=n_comps)
 logging.info(f'HMM fitted and plot saved as pc{n_comps}_with_regimes.png.')
@@ -253,10 +253,10 @@ logging.info('Comparing strategies with benchmark returns...')
 
 # Cumulative return plots
 
-cumulative_comparison_plot(strategy_returns, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Equal_Weight_cumulative_returns_strategy_vs_benchmark")
-cumulative_comparison_plot(strategy_weighted_returns, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Sharpe_Weighted_cumulative_returns_strategy_vs_benchmark")
-cumulative_comparison_plot(strategy_excess, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Filtered_cumulative_returns_strategy_vs_benchmark") # Seems to be the same as equal weight
-cumulative_comparison_plot(strategy_vol_scaled_returns, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Vol_Scaled_cumulative_returns_strategy_vs_benchmark")
+cumulative_comparison_plot(strategy_returns, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Equal_Weight_cumulative_returns_strategy_vs_benchmark", simulate=True)
+cumulative_comparison_plot(strategy_weighted_returns, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Sharpe_Weighted_cumulative_returns_strategy_vs_benchmark", simulate=True)
+cumulative_comparison_plot(strategy_excess, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Filtered_cumulative_returns_strategy_vs_benchmark", simulate=True) # Seems to be the same as equal weight
+cumulative_comparison_plot(strategy_vol_scaled_returns, benchmark_returns, f"pc{n_comps}_N={TOP_N}_Vol_Scaled_cumulative_returns_strategy_vs_benchmark", simulate=True)
 
 logging.info('Cumulative comparison plots saved successfully.')
 
@@ -269,5 +269,5 @@ strategy_dict = {
     f"PCA={n_comps} Vol Scaled": strategy_vol_scaled_returns
 }
 
-compare_all_strategies(strategy_dict, benchmark_returns, n_pca_components=n_comps)
+compare_all_strategies(strategy_dict, benchmark_returns, n_pca_components=n_comps, simulate=True)
 logging.info(f'All strategies compared and plotted successfully. Saved as pc{n_comps}_all_strategies.png')
