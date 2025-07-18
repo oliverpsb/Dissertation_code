@@ -94,16 +94,20 @@ logging.info('Fetched, processed and saved macroeconomic data as macro_data.csv'
 
 logging.info('Running PCA on macroeconomic data...')
 # Run PCA on macroeconomic data
-n_comps = 4  # Number of components to extract
+n_comps = 5  # Number of components to extract
 m_model = MacroPCA(data=macro_df, n_components=n_comps)
 m_model.standardise()
 pc_df_m = m_model.run_pca()
-scree_plot = m_model.plot_scree(save_path=f'analysis_output/pc{n_comps}_scree_plot.png')
+scree_plot = m_model.plot_scree(save_path=f'analysis_output/pc{n_comps}_scree_plot.png', cumulative=True)
 
 logging.info('PCA justification steps...')
 explained_var = m_model.get_explained_variance()
+cumulative_explained = explained_var[:n_comps].sum()
+print(f'Explained variance for {n_comps} components: {cumulative_explained:.3f}')
 explained_series = pd.Series(explained_var, index=[f'PC{i+1}' for i in range(len(explained_var))])
 explained_series.to_csv(f'analysis_output/pc{n_comps}_explained_variance.csv', index=True)
+loadings_df = m_model.get_loadings()
+loadings_df.to_csv(f'analysis_output/pc{n_comps}_loadings.csv', index=True)
 
 
 pc_df_m.to_csv(f'analysis_output/pc{n_comps}_df_m.csv', index=True)  # Save PCA output
@@ -114,7 +118,7 @@ logging.info('Plotting principal components over time...')
 # Plot the principal components over time
 pc_df_m.index = pd.to_datetime(pc_df_m.index)
 
-plt.figure(figsize=(14, 8))
+plt.figure(figsize=(20, 8))
 for i in range(n_comps):
     plt.plot(pc_df_m.index, pc_df_m.iloc[:, i], label=f'PC{i+1}')
 plt.title('Principal Components Over Time')

@@ -72,6 +72,7 @@ class MacroPCA:
         plt.plot(range(1, len(explained) + 1), explained, marker='o', label='Explained Variance')
         if cumulative:
             plt.plot(range(1, len(cumulative_var) + 1), cumulative_var, marker='x', linestyle='--', label='Cumulative Variance')
+            plt.axhline(y=0.9, color='red', linestyle='--', linewidth=1, label='90% Variance Threshold')
 
         plt.title('Scree Plot of Principal Components')
         plt.xlabel('Principal Component')
@@ -133,7 +134,7 @@ class RegimeHMM():
         else:
             saved_place_name = f"analysis_output/pc{n_pca_components}_r{self.n_regimes}_with_regimes.png"
 
-        plt.figure(figsize=(16, 7))
+        plt.figure(figsize=(20, 8))
         regime_colors = plt.cm.Set1(np.arange(self.n_regimes))
 
         # Plot each principal component
