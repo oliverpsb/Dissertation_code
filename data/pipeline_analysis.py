@@ -156,6 +156,20 @@ logging.info(f'Transition matrix obtained from HMM model and saved as pc{n_comps
 # Attach the regime labels to the PCA output and dates
 monthly_regimes = m_hmm.pca_output[['PC1', 'PC2', 'PC3', 'PC4', 'Regime']].copy()
 
+# Compite PC stats by regime
+pc_stats_by_regime = pc_df_m.groupby('Regime').agg(['mean', 'std'])
+pc_stats_by_regime.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_pc_summary_by_regime.csv')
+
+# Visualise PC means by regime
+pc_means = pc_stats_by_regime.xs('mean', axis=1, level=1)
+pc_means.T.plot(kind='bar', figsize=(12, 6))
+plt.title('Principal Component Means by Regime')
+plt.ylabel('Mean Value')
+plt.tight_layout()
+plt.savefig(f'analysis_output/pc{n_comps}_r{num_reg}_pc_means_barplot.png')
+
+
+
 # This next section will be about factor performance based on the regimes detected
 
 logging.info('Merging macro PCA with factor data...')
@@ -192,7 +206,10 @@ hit_ratios.columns = [f'{col}_HitRatio' for col in hit_ratios.columns]
 # Calculate Sortino Ratio
 def sortino_ratio(x):
     downside = x[x < 0]
-    return x.mean() / downside.std() if downside.std !=0 else np.nan
+    std_down = downside.std()
+    return x.mean() / std_down if std_down and not np.isnan(std_down) else 0  # or use another fallback
+
+
 
 sortino_ratios = merged.groupby('Regime')[factor_cols].agg(sortino_ratio)
 sortino_ratios.columns = [f'{col}_Sortino' for col in sortino_ratios.columns]
@@ -265,3 +282,40 @@ plt.legend(title='Regime', bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
 plt.savefig(f"analysis_output/pc{n_comps}_r{num_reg}_sharpe_ratios_with_full_sample.png", dpi=300)
 logging.info(f'Sharpe ratio comparison with full-sample baseline saved as pc{n_comps}_r{num_reg}_sharpe_ratios_with_full_sample.png')
+
+# Extract and reformat Sortino ratios for plotting
+sortino_cols = [col for col in performance_summary.columns if col.endswith('_Sortino')]
+sortino_df = performance_summary[sortino_cols].copy()
+sortino_df.columns = [col.replace('_Sortino', '') for col in sortino_df.columns]
+
+# Transpose for bar plot
+sortino_df.T.plot(kind='bar', figsize=(12, 6), width=0.8)
+plt.title('Sortino Ratios by Factor and Regime')
+plt.xlabel('Factor')
+plt.ylabel('Sortino Ratio')
+plt.xticks(rotation=0)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.legend(title='Regime', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+plt.savefig(f"analysis_output/pc{n_comps}_r{num_reg}_sortino_ratios_by_regime.png", dpi=300)
+logging.info('Sortino ratio plot saved.')
+
+# Extract and reformat hit ratios for plotting
+hit_cols = [col for col in performance_summary.columns if col.endswith('_HitRatio')]
+hit_df = performance_summary[hit_cols].copy()
+hit_df.columns = [col.replace('_HitRatio', '') for col in hit_df.columns]
+
+# Convert to percentage
+hit_df *= 100
+
+# Transpose for bar plot
+hit_df.T.plot(kind='bar', figsize=(12, 6), width=0.8)
+plt.title('Hit Ratios by Factor and Regime')
+plt.xlabel('Factor')
+plt.ylabel('Hit Ratio (%)')
+plt.xticks(rotation=0)
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.legend(title='Regime', bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+plt.savefig(f"analysis_output/pc{n_comps}_r{num_reg}_hit_ratios_by_regime.png", dpi=300)
+logging.info('Hit ratio plot saved.')
