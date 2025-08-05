@@ -198,10 +198,13 @@ performance = grouped.agg(['mean', 'std'])
 # Calculate Sharpe ratio for each factor in each regime (mean / std)
 sharpe_ratios = performance.xs('mean', axis=1, level=1) / performance.xs('std', axis=1, level=1)
 sharpe_ratios.columns = [f'{col}_Sharpe' for col in sharpe_ratios.columns]
+sharpe_ratios.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_sharpe_ratios.csv')
+
 
 # Calculate Hit Ratio
 hit_ratios = merged.groupby('Regime')[factor_cols].apply(lambda x: (x > 0).mean())
 hit_ratios.columns = [f'{col}_HitRatio' for col in hit_ratios.columns]
+
 
 # Calculate Sortino Ratio
 def sortino_ratio(x):
@@ -237,6 +240,7 @@ for factor in factor_cols:
 anova_df = pd.DataFrame(anova_results).T
 anova_df.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_anova_results.csv')
 logging.info(f'ANOVA results saved as pc{n_comps}_r{num_reg}_anova_results.csv')
+
 
 
 logging.info('Calculating full-sample Sharpe ratio for baseline comparison...')
