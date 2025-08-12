@@ -154,7 +154,7 @@ transition_matrix_df.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_transition_
 logging.info(f'Transition matrix obtained from HMM model and saved as pc{n_comps}_r{num_reg}_transition_matrix.csv')
 
 # Attach the regime labels to the PCA output and dates
-monthly_regimes = m_hmm.pca_output[['PC1', 'PC2', 'PC3', 'PC4', 'Regime']].copy()
+monthly_regimes = m_hmm.pca_output[['PC1', 'PC2', 'PC3', 'PC4', 'PC5', 'Regime']].copy()
 
 # Compite PC stats by regime
 pc_stats_by_regime = pc_df_m.groupby('Regime').agg(['mean', 'std'])

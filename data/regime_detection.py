@@ -179,6 +179,59 @@ class RegimeHMM():
         plt.savefig(saved_place_name, dpi=300)
         # Save the plot
 
+    def plot_pc_with_regimes_sand(self, title, n_pca_components):
+        """
+        Plot the principal components with shaded regimes.
+        param: title - title of the plot.
+        """
+
+        saved_place_name = f"sandbox_output/pc{n_pca_components}_r{self.n_regimes}_with_regimes.png"
+
+        plt.figure(figsize=(20, 8))
+        regime_colors = plt.cm.Set1(np.arange(self.n_regimes))
+
+        # Plot each principal component
+        for i in range(1, n_pca_components + 1):
+            plt.plot(self.pca_output.index, self.pca_output[f'PC{i}'], label=f'PC{i}', linewidth=1)
+
+        # Shade regimes
+        prev_regime = self.pca_output['Regime'].iloc[0]
+        start_date = self.pca_output.index[0]
+        used_patches = {}
+
+        for i in range(1, len(self.pca_output)):
+            current_regime = self.pca_output['Regime'].iloc[i]
+            if current_regime != prev_regime:
+                color = regime_colors[prev_regime]
+                plt.axvspan(start_date, self.pca_output.index[i], color=color, alpha=0.2)
+                if prev_regime not in used_patches:
+                    used_patches[prev_regime] = mpatches.Patch(color=color, label=f'Regime {prev_regime}')
+                start_date = self.pca_output.index[i]
+                prev_regime = current_regime
+
+        # Final span
+        color = regime_colors[prev_regime]
+        plt.axvspan(start_date, self.pca_output.index[-1], color=color, alpha=0.2)
+        if prev_regime not in used_patches:
+            used_patches[prev_regime] = mpatches.Patch(color=color, label=f'Regime {prev_regime}')
+
+        plt.title(title)
+        plt.xlabel('Date')
+        plt.ylabel('Principal Component Value')
+        plt.legend(handles=list(used_patches.values()))
+        plt.grid(True)
+        plt.tight_layout()
+
+        plt.gca().xaxis.set_major_locator(mdates.YearLocator(base=1))
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+        plt.gcf().autofmt_xdate()
+
+        pc_legend = plt.legend(loc='upper left')
+        plt.gca().add_artist(pc_legend)  # Show both legends
+        plt.legend(handles=list(used_patches.values()), loc='upper right', title='Regimes')
+        plt.savefig(saved_place_name, dpi=300)
+        # Save the plot
+
 
     def compare_bic(self, pca_input=None, min_regimes=2, max_regimes=6, output_path="analysis_output/hmm_bic_comparison.csv"):
         """

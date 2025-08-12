@@ -34,9 +34,6 @@ daily_factors = pd.merge(ff5_daily, mom_daily, on='Date', how='inner')
 daily_factors = daily_factors.set_index('Date')
 daily_factors = daily_factors.apply(pd.to_numeric, errors='coerce') / 100  # Convert to decimals
 
-daily_factors.to_csv('analysis_output/daily_factors_data.csv', index=True)
-logging.info('Created and saved factors dataframe')
-
 # Get the macroeconomic data
 load_dotenv()
 fred_api_key = os.getenv("FRED_API_KEY")
@@ -86,29 +83,27 @@ macro_df.reset_index(inplace=True)
 macro_df.set_index('Date', inplace=True)
 macro_df.index = pd.to_datetime(macro_df.index)
 macro_df = macro_df[macro_df.index >= '1990-01-01']
-macro_df.to_csv('analysis_output/macro_data.csv', index=True)
 
-logging.info('Fetched, processed and saved macroeconomic data as macro_data.csv')
 
 logging.info('Running PCA on macroeconomic data...')
 # Run PCA on macroeconomic data
-n_comps = 4  # Number of components to extract
+n_comps = 5  # Number of components to extract
 m_model = MacroPCA(data=macro_df, n_components=n_comps)
 m_model.standardise()
 pc_df_m = m_model.run_pca()
-scree_plot = m_model.plot_scree(save_path=f'analysis_output/pc{n_comps}_scree_plot.png', cumulative=True)
+scree_plot = m_model.plot_scree(save_path=f'sandbox_output/pc{n_comps}_scree_plot.png', cumulative=True)
 
 logging.info('PCA justification steps...')
 explained_var = m_model.get_explained_variance()
 cumulative_explained = explained_var[:n_comps].sum()
 print(f'Explained variance for {n_comps} components: {cumulative_explained:.3f}')
 explained_series = pd.Series(explained_var, index=[f'PC{i+1}' for i in range(len(explained_var))])
-explained_series.to_csv(f'analysis_output/pc{n_comps}_explained_variance.csv', index=True)
+explained_series.to_csv(f'sandbox_output/pc{n_comps}_explained_variance.csv', index=True)
 loadings_df = m_model.get_loadings()
-loadings_df.to_csv(f'analysis_output/pc{n_comps}_loadings.csv', index=True)
+loadings_df.to_csv(f'sandbox_output/pc{n_comps}_loadings.csv', index=True)
 
+pc_df_m.to_csv(f'sandbox_output/pc{n_comps}_df_m.csv', index=True)  # Save PCA output
 
-pc_df_m.to_csv(f'analysis_output/pc{n_comps}_df_m.csv', index=True)  # Save PCA output
 
 logging.info(f'PCA completed. Saved PCA output to pc{n_comps}_df_m.csv')
 
@@ -130,7 +125,7 @@ plt.gcf().autofmt_xdate()  # Rotate x-axis labels for readability
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig(f'analysis_output/pca{n_comps}_timeline.png', dpi=300)  # Save the plot
+plt.savefig(f'sandbox_output/pca{n_comps}_timeline.png', dpi=300)  # Save the plot
 
 logging.info(f'PCA timeline plot saved as pca{n_comps}_timeline.png')
 
@@ -142,13 +137,13 @@ m_hmm.fit()
 
 logging.info('Running BIC comparison for different regime counts...')
 m_hmm.compare_bic(min_regimes=2, max_regimes=8)
-logging.info('BIC comparison completed and saved to analysis_output/hmm_bic_comparison.csv')
+logging.info('BIC comparison completed and saved to sandbox_output/hmm_bic_comparison.csv')
 
-m_hmm.plot_pc_with_regimes("Monthly PC with HMM Regimes", n_pca_components=n_comps)
+m_hmm.plot_pc_with_regimes_sand("Monthly PC with HMM Regimes", n_pca_components=n_comps)
 logging.info(f'HMM fitted and plot saved as pc{n_comps}_with_regimes.png.')
 transition_matrix = m_hmm.get_transition_matrix()
 transition_matrix_df = pd.DataFrame(transition_matrix)
-transition_matrix_df.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_transition_matrix.csv')
+transition_matrix_df.to_csv(f'sandbox_output/pc{n_comps}_r{num_reg}_transition_matrix.csv')
 logging.info(f'Transition matrix obtained from HMM model and saved as pc{n_comps}_r{num_reg}_transition_matrix.csv')
 
 # Attach the regime labels to the PCA output and dates
@@ -171,7 +166,7 @@ daily_factors_with_regime = pd.merge_asof(
 
 # Compite PC stats by regime
 pc_stats_by_regime = pc_df_m.groupby('Regime').agg(['mean', 'std'])
-pc_stats_by_regime.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_pc_summary_by_regime.csv')
+pc_stats_by_regime.to_csv(f'sandbox_output/pc{n_comps}_r{num_reg}_pc_summary_by_regime.csv')
 
 # Visualise PC means by regime
 pc_means = pc_stats_by_regime.xs('mean', axis=1, level=1)
@@ -179,52 +174,53 @@ pc_means.T.plot(kind='bar', figsize=(12, 6))
 plt.title('Principal Component Means by Regime')
 plt.ylabel('Mean Value')
 plt.tight_layout()
-plt.savefig(f'analysis_output/pc{n_comps}_r{num_reg}_pc_means_barplot.png')
+plt.savefig(f'sandbox_output/pc{n_comps}_r{num_reg}_pc_means_barplot.png')
 
-# This next section will be about factor performance based on the regimes detected
-
-# Daily factor performance by regime
-
-logging.info('Computing daily factor performance by regime (bps/day, %/day, daily Sharpe, N days)...')
+# # This next section will be about factor performance based on the regimes detected
 
 
+# logging.info('Implementing ANOVA to compare Sharpe ratios across regimes...')
+# # Identify regime segments: consecutive rows with the same regime
+# daily_factors_with_regime['Regime_Segment'] = (
+#     (daily_factors_with_regime['Regime'] != daily_factors_with_regime['Regime'].shift()).cumsum()
+# )
+
+# # Store per-regime-instance Sharpe ratios
+# segment_sharpes = {factor: [] for factor in ['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom']}
+# segment_regimes = []
+
+# # Group by regime segments (i.e., uninterrupted sequences of the same regime)
+# for seg_id, segment_data in daily_factors_with_regime.groupby('Regime_Segment'):
+#     regime_label = segment_data['Regime'].iloc[0]
+    
+#     if len(segment_data) < 21:
+#         continue  # skip segments too short to compute Sharpe meaningfully
+    
+#     for factor in segment_sharpes:
+#         mean = segment_data[factor].mean()
+#         std = segment_data[factor].std()
+#         if std != 0 and not np.isnan(std):
+#             segment_sharpes[factor].append(mean / std)
+#         else:
+#             segment_sharpes[factor].append(np.nan)
+    
+#     segment_regimes.append(regime_label)
+
+# # Run ANOVA on Sharpe ratios per factor
+# anova_segment_results = {}
+# for factor, values in segment_sharpes.items():
+#     df = pd.DataFrame({'Sharpe': values, 'Regime': segment_regimes}).dropna()
+#     groups = [df[df['Regime'] == reg]['Sharpe'].values for reg in sorted(df['Regime'].unique())]
+    
+#     if all(len(g) >= 2 for g in groups):
+#         f_stat, p_val = f_oneway(*groups)
+#         anova_segment_results[factor] = {'F-statistic': f_stat, 'p-value': p_val}
+#     else:
+#         anova_segment_results[factor] = {'F-statistic': None, 'p-value': None}
 
 
-logging.info('Implementing ANOVA on rolling Sharpe ratios (daily factors grouped by regime)...')
 
-rolling_window = 14
-USE_OVERLAP   = False     # set to False for non-overlapping windows
-
-factors = ['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom']
-anova_daily_sharpe = {}
-
-for factor in factors:
-    samples = []
-    for reg, grp in daily_factors_with_regime.groupby('Regime'):
-        s = grp[factor].dropna()
-        if s.size < rolling_window:
-            samples.append(np.array([]))
-            continue
-
-        roll_mean = s.rolling(window=rolling_window, min_periods=rolling_window).mean()
-        roll_std  = s.rolling(window=rolling_window, min_periods=rolling_window).std()
-        sharpe    = (roll_mean / roll_std).dropna()
-
-        if not USE_OVERLAP:
-            # take every 'rolling_window'-th point to avoid overlap
-            sharpe = sharpe.iloc[::rolling_window]
-
-        samples.append(sharpe.values)
-
-    valid = [x for x in samples if len(x) >= 2]
-    if len(valid) >= 2:
-        f_stat, p_val = f_oneway(*valid)
-    else:
-        f_stat, p_val = (None, None)
-
-    anova_daily_sharpe[factor] = {'F-statistic': f_stat, 'p-value': p_val}
-
-suffix = 'overlap' if USE_OVERLAP else 'nonoverlap'
-outpath = f'analysis_output/pc{n_comps}_r{num_reg}_anova_daily_rolling_sharpe_{suffix}.csv'
-pd.DataFrame(anova_daily_sharpe).T.to_csv(outpath)
-logging.info(f'ANOVA on rolling Sharpe ratios saved as {outpath}')
+# # Save the results
+# anova_segment_df = pd.DataFrame(anova_segment_results).T
+# anova_segment_df.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_anova_segment_sharpe.csv')
+# logging.info(f'ANOVA on regime-aligned Sharpe ratios saved as pc{n_comps}_r{num_reg}_anova_segment_sharpe.csv')
