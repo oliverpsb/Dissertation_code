@@ -175,6 +175,19 @@ pc_stats_by_regime.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_pc_summary_by
 
 # Visualise PC means by regime
 pc_means = pc_stats_by_regime.xs('mean', axis=1, level=1)
+
+fig, ax = plt.subplots(figsize=(12, 6))
+x = np.arange(pc_means.shape[1])  # positions for PCs
+bar_width = 0.18
+for i, reg in enumerate(sorted(pc_means.index)):
+    offsets = x + (i - (len(pc_means.index)-1)/2) * bar_width
+    ax.bar(offsets,
+           pc_means.loc[reg].values,
+           width=bar_width,
+           label=f"Regime {reg}",
+           color=REGIME_PALETTE.get(reg, "#7f7f7f"))
+
+
 pc_means.T.plot(kind='bar', figsize=(12, 6))
 plt.title('Principal Component Means by Regime')
 plt.ylabel('Mean Value')

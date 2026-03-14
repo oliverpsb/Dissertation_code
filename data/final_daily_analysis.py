@@ -7,11 +7,18 @@ from regime_detection import RegimeHMM
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.dates as mdates
-import matplotlib.patches as mpatches
 import logging
 from scipy.stats import f_oneway
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+
+REGIME_PALETTE = {
+    0: "#d62728",  # red
+    1: "#1f77b4",  # blue
+    2: "#2ca02c",  # green
+    3: "#9467bd",  # purple
+}
+
 
 # Load daily Fama-French 5 factors + Momentum
 ff5_daily_url = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_5_Factors_2x3_daily_CSV.zip"
@@ -116,7 +123,7 @@ logging.info('Plotting principal components over time...')
 # Plot the principal components over time
 pc_df_m.index = pd.to_datetime(pc_df_m.index)
 
-plt.figure(figsize=(20, 8))
+plt.figure(figsize=(20, 12))
 for i in range(n_comps):
     plt.plot(pc_df_m.index, pc_df_m.iloc[:, i], label=f'PC{i+1}')
 plt.title('Principal Components Over Time')
@@ -175,13 +182,28 @@ pc_stats_by_regime.to_csv(f'analysis_output/pc{n_comps}_r{num_reg}_pc_summary_by
 
 # Visualise PC means by regime
 pc_means = pc_stats_by_regime.xs('mean', axis=1, level=1)
-pc_means.T.plot(kind='bar', figsize=(12, 6))
-plt.title('Principal Component Means by Regime')
-plt.ylabel('Mean Value')
-plt.tight_layout()
-plt.savefig(f'analysis_output/pc{n_comps}_r{num_reg}_pc_means_barplot.png')
 
-# This next section will be about factor performance based on the regimes detected
+fig, ax = plt.subplots(figsize=(12, 6))
+x = np.arange(pc_means.shape[1])  # positions for PCs
+bar_width = 0.18
+for i, reg in enumerate(sorted(pc_means.index)):
+    offsets = x + (i - (len(pc_means.index)-1)/2) * bar_width
+    ax.bar(offsets,
+           pc_means.loc[reg].values,
+           width=bar_width,
+           label=f"Regime {reg}",
+           color=REGIME_PALETTE.get(reg, "#7f7f7f"))
+
+ax.set_title('Principal Component Means by Regime')
+ax.set_ylabel('Mean Value')
+ax.set_xticks(x)
+ax.set_xticklabels(pc_means.columns.tolist())
+ax.axhline(0, color='black', linewidth=0.8)
+ax.legend(frameon=False, title="Regimes")
+ax.grid(axis='y', linestyle='--', alpha=0.3)
+plt.tight_layout()
+plt.savefig(f'analysis_output/pc{n_comps}_r{num_reg}_pc_means_barplot.png', dpi=300)
+plt.close(fig)
 
 # Daily factor performance by regime
 
@@ -219,53 +241,14 @@ n_days.to_csv('analysis_output/daily_obs_count_by_regime.csv')
 
 logging.info('Saved: mean (bps/day), vol (%/day), Sharpe (daily), and N_days by regime.')
 
-# ----------------------------------------------------
-# NEW: Worst max drawdown per regime (narrative use)
-# ----------------------------------------------------
-logging.info('Computing worst max drawdown per contiguous regime segment (daily)...')
 
-
-def max_drawdown_from_returns(returns: pd.Series) -> float:
-    """Max drawdown from a return series (simple returns). Returns a negative number (e.g., -0.35)."""
-    if returns.empty:
-        return np.nan
-    cum = (1.0 + returns).cumprod()
-    running_max = cum.cummax()
-    dd = (cum / running_max) - 1.0
-    return dd.min() if not dd.empty else np.nan
-
-
-regime_series = daily_factors_with_regime['Regime']
-regime_changes = (regime_series != regime_series.shift()).cumsum()
-segments = pd.DataFrame({'Regime': regime_series, 'SegID': regime_changes}, index=regime_series.index)
-
-drawdown_rows = []
-for reg in sorted(regime_series.dropna().unique()):
-    seg_ids = segments.loc[segments['Regime'] == reg, 'SegID'].unique()
-    for factor in factors:
-        worst_dd = np.nan
-        for seg in seg_ids:
-            mask = segments['SegID'] == seg
-            seg_rets = daily_factors_with_regime.loc[mask, factor].dropna()
-            if seg_rets.empty:
-                continue
-            dd = max_drawdown_from_returns(seg_rets)
-            if pd.isna(worst_dd) or (dd < worst_dd):  # dd is negative; smaller is worse
-                worst_dd = dd
-        drawdown_rows.append({'Regime': reg, 'Factor': factor, 'Worst_Max_Drawdown': worst_dd})
-
-drawdowns_df = pd.DataFrame(drawdown_rows).pivot(index='Factor', columns='Regime', values='Worst_Max_Drawdown')
-drawdowns_df.to_csv('analysis_output/max_drawdowns_by_regime_worst_segment.csv')
-logging.info('Saved: max drawdowns by regime (worst contiguous segment).')
-
-# ----------------------------------------------------
 # ANOVA on rolling Sharpe ratios (daily)
-# ----------------------------------------------------
+
 logging.info('Implementing ANOVA on rolling Sharpe ratios (daily, grouped by regime)...')
 
 rolling_window = 14
 USE_OVERLAP = False  # False = non-overlapping windows
-
+obs_counts = {}
 anova_daily_sharpe = {}
 for factor in factors:
     samples = []
@@ -280,6 +263,7 @@ for factor in factors:
 
         if not USE_OVERLAP:
             sharpe = sharpe.iloc[::rolling_window]  # reduce overlap correlation
+        obs_counts[reg] = len(sharpe)
 
         samples.append(sharpe.values)
 
@@ -291,10 +275,51 @@ for factor in factors:
 
     anova_daily_sharpe[factor] = {'F-statistic': f_stat, 'p-value': p_val}
 
+print("Number of rolling Sharpe observations per regime:", obs_counts)
+
+
 suffix = 'overlap' if USE_OVERLAP else 'nonoverlap'
 outpath = f'analysis_output/pc{n_comps}_r{num_reg}_anova_daily_rolling_sharpe_{suffix}.csv'
 pd.DataFrame(anova_daily_sharpe).T.to_csv(outpath)
 logging.info(f'ANOVA on rolling Sharpe ratios saved as {outpath}')
+
+sharpe_plot = sharpe_daily.copy()  # index = Regime, columns = factors
+
+# Ensure consistent factor order
+factor_order = ['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom']
+sharpe_plot = sharpe_plot[factor_order]
+
+fig, ax = plt.subplots(figsize=(12, 6))
+
+n_reg = len(sharpe_plot.index)
+n_fac = len(sharpe_plot.columns)
+bar_width = 0.12 if n_reg >= 6 else 0.15
+x = np.arange(n_fac)
+
+# Plot one bar set per regime
+for i, reg in enumerate(sorted(sharpe_plot.index)):
+    offsets = x + (i - (n_reg-1)/2) * bar_width
+    ax.bar(offsets,
+           sharpe_plot.loc[reg].values,
+           width=bar_width,
+           label=f"Regime {int(reg)}",
+           color=REGIME_PALETTE.get(reg, "#7f7f7f"))
+
+# Aesthetics
+ax.set_title('Daily Sharpe ratios by regime (FF5 + Momentum)')
+ax.set_xlabel('Factor')
+ax.set_ylabel('Daily Sharpe ratio')
+ax.set_xticks(x)
+ax.set_xticklabels(['Mkt–RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom'])
+ax.axhline(0, color='black', linewidth=0.8)
+ax.legend(ncol=min(n_reg, 4), frameon=False)
+ax.grid(axis='y', linestyle='--', alpha=0.3)
+
+plt.tight_layout()
+outpath_figq = 'analysis_output/daily_sharpe_by_regime_barplot.png'
+plt.savefig(outpath_figq, dpi=300)
+plt.close(fig)
+logging.info(f'Sharpe barplot: {outpath_figq}')
 
 print("Saved key outputs in analysis_output/:")
 print(" - daily_factors_data.csv")
@@ -306,5 +331,4 @@ print(" - daily_mean_returns_by_regime_bps_per_day.csv")
 print(" - daily_vol_by_regime_percent_per_day.csv")
 print(" - daily_sharpe_by_regime.csv")
 print(" - daily_obs_count_by_regime.csv")
-print(" - max_drawdowns_by_regime_worst_segment.csv")
 print(f" - pc{n_comps}_r{num_reg}_anova_daily_rolling_sharpe_{suffix}.csv")

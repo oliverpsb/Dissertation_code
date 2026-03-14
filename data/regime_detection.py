@@ -9,6 +9,7 @@ import matplotlib.dates as mdates
 import matplotlib.patches as mpatches
 from hmmlearn.hmm import GaussianHMM
 
+
 class MacroPCA:
     def __init__(self, data, n_components=None, frequency='ME'):
         """
@@ -72,7 +73,6 @@ class MacroPCA:
         plt.plot(range(1, len(explained) + 1), explained, marker='o', label='Explained Variance')
         if cumulative:
             plt.plot(range(1, len(cumulative_var) + 1), cumulative_var, marker='x', linestyle='--', label='Cumulative Variance')
-            plt.axhline(y=0.9, color='red', linestyle='--', linewidth=1, label='90% Variance Threshold')
 
         plt.title('Scree Plot of Principal Components')
         plt.xlabel('Principal Component')
@@ -86,7 +86,6 @@ class MacroPCA:
             plt.savefig(save_path)
         else:
             plt.show()
-
 
 
 class RegimeHMM():
@@ -112,30 +111,41 @@ class RegimeHMM():
                                      covariance_type=self.covariance_type, 
                                     n_iter=self.iterations, 
                                     random_state=42)
-        
+
     def fit(self):
         "Fit the HMM model to the PCA output."
         self.hmm_model.fit(self.pca_output)
         regime_labels = self.hmm_model.predict(self.pca_output) # Predict regime labels
         self.pca_output['Regime'] = regime_labels # Add regime labels to DataFrame
         return self.pca_output
-    
+
     def get_transition_matrix(self):
         "Get the transition matrix of the HMM model."
         return np.round(self.hmm_model.transmat_, 3)
-    
+
     def plot_pc_with_regimes(self, title, n_pca_components):
         """
         Plot the principal components with shaded regimes.
         param: title - title of the plot.
         """
+
+        # Fixed regime palette (0=red, 1=blue, 2=green, 3=purple)
+        _PALETTE = {0: "#d62728", 1: "#1f77b4", 2: "#2ca02c", 3: "#9467bd"}
+
+        def _regime_color(reg):
+            # robust to string labels; safe fallback for >3
+            try:
+                reg = int(reg)
+            except Exception:
+                reg = int(str(reg).strip().lower().replace("regime", "").strip())
+            return _PALETTE.get(reg, plt.cm.tab10(reg % 10))
+    
         if self.simulate:
             saved_place_name = f"strategy_output/pc{n_pca_components}_r{self.n_regimes}_with_regimes.png"
         else:
             saved_place_name = f"analysis_output/pc{n_pca_components}_r{self.n_regimes}_with_regimes.png"
 
-        plt.figure(figsize=(20, 8))
-        regime_colors = plt.cm.Set1(np.arange(self.n_regimes))
+        plt.figure(figsize=(20, 12))
 
         # Plot each principal component
         for i in range(1, n_pca_components + 1):
@@ -149,7 +159,7 @@ class RegimeHMM():
         for i in range(1, len(self.pca_output)):
             current_regime = self.pca_output['Regime'].iloc[i]
             if current_regime != prev_regime:
-                color = regime_colors[prev_regime]
+                color = _regime_color(prev_regime)
                 plt.axvspan(start_date, self.pca_output.index[i], color=color, alpha=0.2)
                 if prev_regime not in used_patches:
                     used_patches[prev_regime] = mpatches.Patch(color=color, label=f'Regime {prev_regime}')
@@ -157,7 +167,7 @@ class RegimeHMM():
                 prev_regime = current_regime
 
         # Final span
-        color = regime_colors[prev_regime]
+        color = _regime_color(prev_regime)
         plt.axvspan(start_date, self.pca_output.index[-1], color=color, alpha=0.2)
         if prev_regime not in used_patches:
             used_patches[prev_regime] = mpatches.Patch(color=color, label=f'Regime {prev_regime}')
@@ -262,4 +272,3 @@ class RegimeHMM():
 
         pd.Series(bic_scores, name='BIC').to_csv(output_path)
         print(f"BIC comparison saved to {output_path}")
-
